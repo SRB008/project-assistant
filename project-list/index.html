@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Projects Listing</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<script>
+  // ?embed=1 is used when this page is loaded inside dashboard/index.html's
+  // iframe: it hides the page chrome (heading, buttons, filters) so only the
+  // live table shows. Set on <html> (not <body>) so it's available before body parses.
+  if (new URLSearchParams(location.search).get("embed") === "1") {
+    document.documentElement.classList.add("embed-mode");
+  }
+</script>
+<link rel="stylesheet" href="/shared/theme.css">
+<link rel="stylesheet" href="/shared/components.css">
+<style>
+  /* Colours and fonts come from /shared/theme.css */
+  :root {
+    --accent-contrast: #FFFFFF;
+    --accent-tint: #2A78D61A;
+    --danger-tint: #D03B3B1A;
+    --amber: #B4790E;
+    --amber-tint: #B4790E1A;
+    --people-blue: #3B6FD4;
+    --shadow: 0 1px 2px rgba(20, 24, 30, 0.06), 0 1px 1px rgba(20, 24, 30, 0.04);
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--page-plane); color: var(--text-primary);
+    font-family: var(--font-body); -webkit-font-smoothing: antialiased;
+  }
+
+  .app { min-height: 100vh; display: flex; flex-direction: column; padding-top: 34px; }
+
+  .main { flex: 1; display: flex; min-height: 0; }
+  .list-scroll { flex: 1; overflow-y: auto; display: flex; justify-content: center; padding: 28px 24px 60px; }
+  .list-panel { width: 100%; max-width: 1200px; }
+
+  .notice {
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; font-size: 13.5px;
+    line-height: 1.5;
+  }
+  .notice-error { background: var(--danger-tint); border: 1px solid var(--danger); color: var(--danger); }
+  .notice-hidden { display: none; }
+
+  .projects-card {
+    background: var(--surface-1); border: 1px solid var(--gridline); border-radius: 12px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  table.open-projects-table { width: 100%; border-collapse: collapse; }
+  .open-projects-table th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-muted); font-weight: 600; padding: 10px 14px;
+    border-bottom: 1px solid var(--gridline); background: var(--panel-alt); white-space: nowrap;
+  }
+  .open-projects-table td { padding: 10px 14px; border-bottom: 1px solid var(--gridline); vertical-align: middle; }
+  .open-projects-table tr:last-child td { border-bottom: none; }
+  .open-projects-table tbody tr { cursor: pointer; }
+  .open-projects-table tbody tr:hover { background: var(--panel-alt); }
+  .open-projects-table td.col-health { width: 1%; }
+  .open-projects-table td.col-phase { white-space: nowrap; }
+  .open-projects-table th.sortable { cursor: pointer; user-select: none; }
+  .open-projects-table th.sortable:hover { color: var(--text-secondary); }
+  .open-projects-table th.sortable.active { color: var(--series-1); }
+  .sort-arrow { display: inline-block; width: 10px; margin-left: 4px; font-size: 9px; color: var(--series-1); }
+  .project-title { font-weight: 500; }
+  .project-title-name { font-weight: 500; }
+  .project-people { font-size: 11px; font-weight: 400; color: var(--people-blue); margin-top: 2px; }
+  .empty-note { padding: 20px 16px; font-size: 13px; color: var(--text-muted); font-style: italic; }
+
+  .health-tag {
+    display: inline-block; width: 7px; height: 18px; border-radius: 3px;
+    background: var(--gridline);
+  }
+  .health-green { background: #4FCE65; }
+  .health-amber { background: #FFC148; }
+  .health-red { background: #FF4853; }
+
+  .phase-cell { display: inline-flex; align-items: center; gap: 7px; }
+  .phase-icon { width: 14px; height: 14px; flex: none; }
+  .filters-block { border-bottom: 1px solid var(--gridline); background: var(--panel-alt); }
+  .filters-block-header { display: flex; align-items: center; gap: 4px; padding: 10px 14px; }
+  .filters-block-header .filter-block-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-muted); font-weight: 600;
+  }
+  .filters-block-body { padding: 0 14px 12px; }
+  .filter-row { margin-bottom: 10px; }
+  .filter-row:last-child { margin-bottom: 0; }
+  .filter-row-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filter-chip {
+    font: inherit; font-size: 11px; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--gridline); background: var(--surface-1); color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .filter-chip:hover { background: var(--accent-tint); }
+  .filter-chip.active {
+    background: var(--accent-tint); border-color: var(--series-1); color: var(--series-1); font-weight: 600;
+  }
+  .collapse-toggle {
+    flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+    border: none; background: transparent; color: var(--text-secondary); font-size: 15px; line-height: 1;
+    cursor: pointer; border-radius: 4px; transition: transform .15s;
+  }
+  .collapse-toggle:hover { background: var(--surface-1); }
+  .collapse-toggle.collapsed { transform: rotate(-90deg); }
+  a.btn { display: inline-block; text-decoration: none; }
+  .filter-search-input {
+    width: 100%; box-sizing: border-box;
+  }
+  .filter-search-results {
+    position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 4px;
+    list-style: none; border: 1px solid var(--gridline); border-radius: 8px; background: var(--surface-1);
+    box-shadow: var(--shadow); max-height: 240px; overflow-y: auto;
+  }
+  .filter-search-result:hover, .filter-search-result.active { background: var(--series-1); color: var(--accent-contrast); }
+  .filter-search-empty { padding: 7px 10px; font-size: 12px; color: var(--text-muted); }
+
+  /* ---------- Detail side panel (matches intake/index.html style) ---------- */
+  .panel {
+    flex: 0 0 380px; border-left: 1px solid var(--gridline); background: var(--surface-1);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .panel.hidden { display: none; }
+  .panel-scroll { overflow-y: auto; padding: 20px 22px 28px; flex: 1; }
+  .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 18px; }
+  .panel-head-title { font-family: var(--font-display); font-size: 18px; line-height: 1.3; text-wrap: balance; }
+  .field-input, .field-select, .field-textarea {
+    width: 100%; background: var(--page-plane); border: 1px solid var(--baseline); border-radius: var(--radius);
+    padding: 7px 9px; font-size: 13px; font-family: var(--font-body); color: var(--text-primary);
+  }
+  .field-input:focus, .field-select:focus, .field-textarea:focus {
+    outline: none;
+    border-color: var(--series-1);
+  }
+  .field-input:disabled, .field-select:disabled, .field-textarea:disabled { opacity: .7; cursor: default; }
+  .field-textarea { resize: vertical; min-height: 60px; line-height: 1.45; }
+  .panel-footer { padding: 14px 22px; border-top: 1px solid var(--gridline); flex: none; }
+  .meta-stamp { font-size: 11px; color: var(--text-muted); }
+  .panel-error { color: var(--danger); font-size: 12px; }
+
+  html.embed-mode .app { padding-top: 0; }
+  html.embed-mode .topbar,
+  html.embed-mode .filters-block,
+  html.embed-mode #auth-gate-bar,
+  html.embed-mode .panel { display: none; }
+  html.embed-mode .main { padding: 4px; }
+  html.embed-mode .open-projects-table tbody tr { cursor: default; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar">
+    <div>
+      <h1>Projects Listing</h1><span class="sub">Health, phase, and timing pulled live from the roadmap</span>
+    </div>
+    <div class="topbar-actions">
+      <a class="btn" id="businessViewBtn" href="view.html" target="_blank" rel="noopener">Business View</a>
+      <button type="button" class="btn" id="exportCsvBtn">Export CSV</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="list-scroll">
+      <div class="list-panel">
+        <div id="loadError" class="notice notice-error notice-hidden"></div>
+
+        <div class="projects-card">
+          <div class="filters-block" id="filtersBlock">
+            <div class="filters-block-header">
+              <button type="button" class="collapse-toggle" id="filtersCollapseToggle" title="Collapse filters">▾</button>
+              <div class="filter-block-label">Filters</div>
+            </div>
+            <div class="filters-block-body" id="filtersBlockBody">
+              <div class="filter-row">
+                <div class="filter-row-label">Phase</div>
+                <div class="filter-chips" id="phaseFilterChips"></div>
+              </div>
+              <div class="filter-row">
+                <div class="filter-row-label">Team</div>
+                <div class="filter-chips" id="teamFilterChips"></div>
+              </div>
+              <div class="filter-row">
+                <div class="filter-row-label">PM</div>
+                <div class="filter-chips" id="pmFilterChips"></div>
+              </div>
+              <div class="filter-row">
+                <div class="filter-row-label">BA</div>
+                <div class="filter-chips" id="baFilterChips"></div>
+              </div>
+              <div class="filter-row filter-search-row">
+                <div class="filter-search-wrap">
+                  <input type="text" id="filterSearchInput" class="input filter-search-input" placeholder="Search projects by name…" autocomplete="off" aria-label="Search projects by name" />
+                  <ul id="filterSearchResults" class="filter-search-results" hidden></ul>
+                </div>
+              </div>
+            </div>
+          </div>
+          <table class="open-projects-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort-key="health">Health<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-key="phase">Phase<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-key="title">Title<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-key="team">Team<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-key="start">Start<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-key="end">End<span class="sort-arrow"></span></th>
+              </tr>
+            </thead>
+            <tbody id="rowsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="panel hidden" id="detailPanel"></div>
+  </div>
+</div>
+
+<script>window.AUTH_REQUIREMENTS = [{ project: 'roadmap-db', role: 'viewer' }];</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/shared/util.js"></script>
+<script src="/shared/auth-gate.js"></script>
+<script src="/shared/project-comments.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var TEAM_OPTIONS = ["Cyber", "Data and BI", "Delivery", "Development", "Digital Tech", "Ecommerce", "Enterprise", "Operations"];
+  var PHASE_ORDER = ["Not Started", "Discovery", "Build", "Test", "Blocked", "Complete"];
+  var DEFAULT_PHASE = "Not Started";
+  var PHASE_ICON_FILES = {
+    "Not Started": "circle-0.svg",
+    "Discovery": "circle-2.svg",
+    "Build": "circle-4.svg",
+    "Test": "circle-6.svg",
+    "Blocked": "circle-blocked.svg",
+    "Complete": "circle-8.svg"
+  };
+  var HEALTH_CLASSES = { Green: "health-green", Amber: "health-amber", Red: "health-red" };
+
+  var HEALTH_ORDER = ["", "Green", "Amber", "Red"];
+  var SORT_FALLBACK_CHAIN = ["phase", "start", "title"];
+
+  var EMBED = document.documentElement.classList.contains("embed-mode");
+
+  var sb;
+  var allRows = [];
+  var sortState = { key: "phase", dir: "asc" };
+  var teamFilter = null; // null = all teams; otherwise an array of selected team names ('' = no team)
+  // Embedded in the dashboard: pre-apply Discovery/Build/Test/Blocked (hide Not Started/Complete).
+  var phaseFilter = EMBED ? ["Discovery", "Build", "Test", "Blocked"] : null; // null = all phases; otherwise an array of selected phase names
+  var pmFilter = null; // null = all PMs; otherwise an array of selected PM names ('' = none)
+  var baFilter = null; // null = all BAs; otherwise an array of selected BA names ('' = none)
+  var searchQuery = ""; // lowercased free-text title search
+  var searchProjectId = null; // set when a search result is picked, to pin the exact project
+  var filtersCollapsed = false;
+  try {
+    if (localStorage.getItem("projects-listing-filters-collapsed") === "1") filtersCollapsed = true;
+  } catch (err) {}
+
+  function normalizedPhase(phase) {
+    return PHASE_ORDER.indexOf(phase) !== -1 ? phase : DEFAULT_PHASE;
+  }
+
+  function parseIsoDate(s) {
+    var parts = String(s || "").split("-");
+    if (parts.length !== 3) return null;
+    var y = Number(parts[0]), m = Number(parts[1]), d = Number(parts[2]);
+    if (!isFinite(y) || !isFinite(m) || !isFinite(d)) return null;
+    var date = new Date(y, m - 1, d);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
+
+  function addDays(date, days) {
+    var d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+
+  function fmtDate(d) {
+    if (!d) return "—";
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function showError(msg) {
+    var el = document.getElementById("loadError");
+    el.textContent = msg;
+    el.classList.toggle("notice-hidden", !msg);
+  }
+
+  function dateVal(d) {
+    return d ? d.getTime() : Infinity;
+  }
+
+  function compareRaw(a, b, key) {
+    switch (key) {
+      case "health": return HEALTH_ORDER.indexOf(a.health) - HEALTH_ORDER.indexOf(b.health);
+      case "phase": return PHASE_ORDER.indexOf(a.phase) - PHASE_ORDER.indexOf(b.phase);
+      case "title": return a.title.toLowerCase().localeCompare(b.title.toLowerCase());
+      case "team": return (a.team || "").toLowerCase().localeCompare((b.team || "").toLowerCase());
+      case "start": return dateVal(a.start) - dateVal(b.start);
+      case "end": return dateVal(a.end) - dateVal(b.end);
+      default: return 0;
+    }
+  }
+
+  function sortRows(rows) {
+    var chain = [sortState.key];
+    SORT_FALLBACK_CHAIN.forEach(function (k) {
+      if (chain.indexOf(k) === -1) chain.push(k);
+    });
+
+    rows.sort(function (a, b) {
+      for (var i = 0; i < chain.length; i++) {
+        var key = chain[i];
+        var dir = key === sortState.key ? sortState.dir : "asc";
+        var diff = compareRaw(a, b, key);
+        if (dir === "desc") diff = -diff;
+        if (diff !== 0) return diff;
+      }
+      return 0;
+    });
+    return rows;
+  }
+
+  function updateSortIndicators() {
+    document.querySelectorAll(".open-projects-table thead th.sortable").forEach(function (th) {
+      var key = th.getAttribute("data-sort-key");
+      var arrow = th.querySelector(".sort-arrow");
+      th.classList.toggle("active", key === sortState.key);
+      arrow.textContent = key === sortState.key ? (sortState.dir === "asc" ? "▲" : "▼") : "";
+    });
+  }
+
+  function attachSortHandlers() {
+    document.querySelectorAll(".open-projects-table thead th.sortable").forEach(function (th) {
+      th.addEventListener("click", function () {
+        var key = th.getAttribute("data-sort-key");
+        if (sortState.key === key) {
+          sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+        } else {
+          sortState.key = key;
+          sortState.dir = "asc";
+        }
+        sortRows(allRows);
+        updateSortIndicators();
+        renderVisible();
+      });
+    });
+    updateSortIndicators();
+  }
+
+  function canEdit() {
+    return !!(window.currentAccess && window.currentAccess["roadmap-db"] === "editor");
+  }
+
+
+  function buildHealthCell(health) {
+    var td = document.createElement("td");
+    td.className = "col-health";
+    var span = document.createElement("span");
+    span.className = "health-tag" + (HEALTH_CLASSES[health] ? " " + HEALTH_CLASSES[health] : "");
+    span.title = health ? "Health: " + health : "Health: not set";
+    td.appendChild(span);
+    return td;
+  }
+
+  function buildPhaseCell(phase) {
+    var td = document.createElement("td");
+    td.className = "col-phase";
+    var wrap = document.createElement("span");
+    wrap.className = "phase-cell";
+    var icon = document.createElement("img");
+    icon.className = "phase-icon";
+    icon.src = PHASE_ICON_FILES[phase];
+    icon.alt = phase;
+    wrap.appendChild(icon);
+    var label = document.createElement("span");
+    label.textContent = phase;
+    wrap.appendChild(label);
+    td.appendChild(wrap);
+    return td;
+  }
+
+  function teamsInUse() {
+    var seen = {};
+    allRows.forEach(function (r) { seen[r.team || ""] = true; });
+    return Object.keys(seen).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  function renderTeamFilterChips() {
+    var teams = teamsInUse();
+    var isAll = teamFilter === null;
+    var isNone = !isAll && teamFilter.length === 0;
+    var html = '<button type="button" class="filter-chip' + (isAll ? " active" : "") + '" data-filter-all="1">All teams</button>';
+    html += '<button type="button" class="filter-chip' + (isNone ? " active" : "") + '" data-filter-none="1">None</button>';
+    html += teams.map(function (t) {
+      var checked = isAll || teamFilter.indexOf(t) !== -1;
+      return '<button type="button" class="filter-chip' + (checked ? " active" : "") + '" data-filter-team="' +
+        escapeHtml(t) + '">' + escapeHtml(t || "No team") + "</button>";
+    }).join("");
+    document.getElementById("teamFilterChips").innerHTML = html;
+  }
+
+  function phasesInUse() {
+    var present = {};
+    allRows.forEach(function (r) { present[r.phase] = true; });
+    return PHASE_ORDER.filter(function (p) { return present[p]; });
+  }
+
+  function renderPhaseFilterChips() {
+    var phases = phasesInUse();
+    var isAll = phaseFilter === null;
+    var isNone = !isAll && phaseFilter.length === 0;
+    var html = '<button type="button" class="filter-chip' + (isAll ? " active" : "") + '" data-filter-all="1">All phases</button>';
+    html += '<button type="button" class="filter-chip' + (isNone ? " active" : "") + '" data-filter-none="1">None</button>';
+    html += phases.map(function (p) {
+      var checked = isAll || phaseFilter.indexOf(p) !== -1;
+      return '<button type="button" class="filter-chip' + (checked ? " active" : "") + '" data-filter-phase="' +
+        escapeHtml(p) + '">' + escapeHtml(p) + "</button>";
+    }).join("");
+    document.getElementById("phaseFilterChips").innerHTML = html;
+  }
+
+  function pmsInUse() {
+    var seen = {};
+    allRows.forEach(function (r) { seen[r.pm || ""] = true; });
+    return Object.keys(seen).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  function renderPmFilterChips() {
+    var pms = pmsInUse();
+    var isAll = pmFilter === null;
+    var isNone = !isAll && pmFilter.length === 0;
+    var html = '<button type="button" class="filter-chip' + (isAll ? " active" : "") + '" data-filter-all="1">All PMs</button>';
+    html += '<button type="button" class="filter-chip' + (isNone ? " active" : "") + '" data-filter-none="1">None</button>';
+    html += pms.map(function (p) {
+      var checked = isAll || pmFilter.indexOf(p) !== -1;
+      return '<button type="button" class="filter-chip' + (checked ? " active" : "") + '" data-filter-pm="' +
+        escapeHtml(p) + '">' + escapeHtml(p || "No PM") + "</button>";
+    }).join("");
+    document.getElementById("pmFilterChips").innerHTML = html;
+  }
+
+  function basInUse() {
+    var seen = {};
+    allRows.forEach(function (r) { seen[r.ba || ""] = true; });
+    return Object.keys(seen).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  function renderBaFilterChips() {
+    var bas = basInUse();
+    var isAll = baFilter === null;
+    var isNone = !isAll && baFilter.length === 0;
+    var html = '<button type="button" class="filter-chip' + (isAll ? " active" : "") + '" data-filter-all="1">All BAs</button>';
+    html += '<button type="button" class="filter-chip' + (isNone ? " active" : "") + '" data-filter-none="1">None</button>';
+    html += bas.map(function (b) {
+      var checked = isAll || baFilter.indexOf(b) !== -1;
+      return '<button type="button" class="filter-chip' + (checked ? " active" : "") + '" data-filter-ba="' +
+        escapeHtml(b) + '">' + escapeHtml(b || "No BA") + "</button>";
+    }).join("");
+    document.getElementById("baFilterChips").innerHTML = html;
+  }
+
+  function updateFiltersCollapseUI() {
+    document.getElementById("filtersBlockBody").style.display = filtersCollapsed ? "none" : "";
+    var toggle = document.getElementById("filtersCollapseToggle");
+    toggle.classList.toggle("collapsed", filtersCollapsed);
+    toggle.title = (filtersCollapsed ? "Expand" : "Collapse") + " filters";
+  }
+
+  function renderVisible() {
+    var rows = allRows.filter(function (r) {
+      if (teamFilter !== null && teamFilter.indexOf(r.team || "") === -1) return false;
+      if (phaseFilter !== null && phaseFilter.indexOf(r.phase) === -1) return false;
+      if (pmFilter !== null && pmFilter.indexOf(r.pm || "") === -1) return false;
+      if (baFilter !== null && baFilter.indexOf(r.ba || "") === -1) return false;
+      if (searchProjectId) return r.projectId === searchProjectId;
+      if (searchQuery && r.title.toLowerCase().indexOf(searchQuery) === -1) return false;
+      return true;
+    });
+    render(rows);
+  }
+
+  function render(rows) {
+    var body = document.getElementById("rowsBody");
+    body.innerHTML = "";
+
+    if (!rows.length) {
+      var tr0 = document.createElement("tr");
+      var td0 = document.createElement("td");
+      td0.colSpan = 6;
+      td0.className = "empty-note";
+      td0.textContent = ((phaseFilter !== null || teamFilter !== null || pmFilter !== null || baFilter !== null || searchProjectId || searchQuery) && allRows.length)
+        ? "No projects match the current filters."
+        : "No open projects on the roadmap.";
+      tr0.appendChild(td0);
+      body.appendChild(tr0);
+      return;
+    }
+
+    rows.forEach(function (row) {
+      var tr = document.createElement("tr");
+      tr.addEventListener("click", function () { openDetailPanel(row); });
+      tr.appendChild(buildHealthCell(row.health));
+      tr.appendChild(buildPhaseCell(row.phase));
+
+      var tdTitle = document.createElement("td");
+      tdTitle.className = "project-title";
+
+      var nameEl = document.createElement("div");
+      nameEl.className = "project-title-name";
+      nameEl.textContent = row.title;
+      tdTitle.appendChild(nameEl);
+
+      var people = [row.pm, row.ba, row.sme].filter(Boolean).join(" · ");
+      if (people) {
+        var peopleEl = document.createElement("div");
+        peopleEl.className = "project-people";
+        peopleEl.textContent = people;
+        tdTitle.appendChild(peopleEl);
+      }
+
+      tr.appendChild(tdTitle);
+
+      var tdTeam = document.createElement("td");
+      tdTeam.textContent = row.team || "—";
+      tr.appendChild(tdTeam);
+
+      var tdStart = document.createElement("td");
+      tdStart.textContent = fmtDate(row.start);
+      tr.appendChild(tdStart);
+
+      var tdEnd = document.createElement("td");
+      tdEnd.textContent = fmtDate(row.end);
+      tr.appendChild(tdEnd);
+
+      body.appendChild(tr);
+    });
+  }
+
+  function populateNameDatalist(listEl, field) {
+    var seen = {};
+    var names = [];
+    allRows.forEach(function (r) {
+      var v = r[field];
+      if (v && !seen[v]) { seen[v] = true; names.push(v); }
+    });
+    names.sort(function (a, b) { return a.localeCompare(b); });
+    listEl.innerHTML = names.map(function (n) {
+      return '<option value="' + escapeHtml(n) + '"></option>';
+    }).join("");
+  }
+
+  var selectedRowId = null;
+
+  function findRowById(id) {
+    return allRows.find(function (r) { return r.id === id; }) || null;
+  }
+
+  function closeDetailPanel() {
+    selectedRowId = null;
+    renderDetailPanel();
+  }
+
+  function openDetailPanel(row) {
+    selectedRowId = row.id;
+    renderDetailPanel();
+  }
+
+  function panelField(labelText, inputEl) {
+    var wrap = document.createElement("div");
+    wrap.className = "field-group";
+    var label = document.createElement("label");
+    label.className = "field-label";
+    label.textContent = labelText;
+    wrap.appendChild(label);
+    wrap.appendChild(inputEl);
+    return wrap;
+  }
+
+  function saveField(row, table, keyId, patch, rowUpdates, panelErrorEl) {
+    panelErrorEl.textContent = "";
+    sb.from(table).update(patch).eq("id", keyId).then(function (res) {
+      if (res.error) {
+        panelErrorEl.textContent = "Couldn't save: " + res.error.message;
+        return;
+      }
+      Object.keys(rowUpdates).forEach(function (k) { row[k] = rowUpdates[k]; });
+      sortRows(allRows);
+      renderPhaseFilterChips();
+      renderTeamFilterChips();
+      renderPmFilterChips();
+      renderBaFilterChips();
+      renderVisible();
+    });
+  }
+
+  function renderDetailPanel() {
+    var panel = document.getElementById("detailPanel");
+    var row = selectedRowId != null ? findRowById(selectedRowId) : null;
+
+    panel.innerHTML = "";
+    if (!row) {
+      panel.classList.add("hidden");
+      return;
+    }
+    panel.classList.remove("hidden");
+
+    var editable = canEdit();
+    var HEALTH_OPTIONS = ["", "Green", "Amber", "Red"];
+    var HEALTH_LABELS = { "": "Not set", Green: "Green", Amber: "Amber", Red: "Red" };
+
+    var scroll = document.createElement("div");
+    scroll.className = "panel-scroll";
+
+    var head = document.createElement("div");
+    head.className = "panel-head";
+    var titleWrap = document.createElement("div");
+    var titleEl = document.createElement("div");
+    titleEl.className = "panel-head-title";
+    titleEl.textContent = row.title;
+    titleWrap.appendChild(titleEl);
+    head.appendChild(titleWrap);
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "panel-close";
+    closeBtn.title = "Close";
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", closeDetailPanel);
+    head.appendChild(closeBtn);
+    scroll.appendChild(head);
+
+    var errorEl = document.createElement("div");
+    errorEl.className = "panel-error";
+
+    var healthSelect = document.createElement("select");
+    healthSelect.className = "field-select";
+    healthSelect.disabled = !editable;
+    HEALTH_OPTIONS.forEach(function (opt) {
+      var o = document.createElement("option");
+      o.value = opt;
+      o.textContent = HEALTH_LABELS[opt];
+      healthSelect.appendChild(o);
+    });
+    healthSelect.value = row.health || "";
+    healthSelect.addEventListener("change", function () {
+      saveField(row, "roadmap_tasks", row.id, { health: healthSelect.value || null }, { health: healthSelect.value }, errorEl);
+    });
+    scroll.appendChild(panelField("Health", healthSelect));
+
+    var phaseSelect = document.createElement("select");
+    phaseSelect.className = "field-select";
+    phaseSelect.disabled = !editable;
+    PHASE_ORDER.forEach(function (p) {
+      var o = document.createElement("option");
+      o.value = p;
+      o.textContent = p;
+      phaseSelect.appendChild(o);
+    });
+    phaseSelect.value = row.phase;
+    phaseSelect.addEventListener("change", function () {
+      saveField(row, "roadmap_tasks", row.id, { phase: phaseSelect.value }, { phase: phaseSelect.value }, errorEl);
+    });
+    scroll.appendChild(panelField("Phase", phaseSelect));
+
+    var teamSelect = document.createElement("select");
+    teamSelect.className = "field-select";
+    teamSelect.disabled = !editable;
+    var blankTeamOption = document.createElement("option");
+    blankTeamOption.value = "";
+    blankTeamOption.textContent = "—";
+    teamSelect.appendChild(blankTeamOption);
+    TEAM_OPTIONS.forEach(function (t) {
+      var o = document.createElement("option");
+      o.value = t;
+      o.textContent = t;
+      teamSelect.appendChild(o);
+    });
+    teamSelect.value = row.team || "";
+    teamSelect.addEventListener("change", function () {
+      saveField(row, "roadmap_tasks", row.id, { team: teamSelect.value || null }, { team: teamSelect.value }, errorEl);
+    });
+    scroll.appendChild(panelField("Team", teamSelect));
+
+    var pmInput = document.createElement("input");
+    pmInput.type = "text";
+    pmInput.className = "field-input";
+    pmInput.disabled = !editable;
+    pmInput.setAttribute("list", "detailPmList");
+    pmInput.setAttribute("autocomplete", "off");
+    pmInput.value = row.pm || "";
+    var pmList = document.createElement("datalist");
+    pmList.id = "detailPmList";
+    populateNameDatalist(pmList, "pm");
+    pmInput.addEventListener("blur", function () {
+      var val = pmInput.value.trim();
+      if (val === (row.pm || "")) return;
+      saveField(row, "projects", row.projectId, { pm: val || null, updated_at: new Date().toISOString() }, { pm: val }, errorEl);
+    });
+    var pmField = panelField("PM", pmInput);
+    pmField.appendChild(pmList);
+    scroll.appendChild(pmField);
+
+    var baInput = document.createElement("input");
+    baInput.type = "text";
+    baInput.className = "field-input";
+    baInput.disabled = !editable;
+    baInput.setAttribute("list", "detailBaList");
+    baInput.setAttribute("autocomplete", "off");
+    baInput.value = row.ba || "";
+    var baList = document.createElement("datalist");
+    baList.id = "detailBaList";
+    populateNameDatalist(baList, "ba");
+    baInput.addEventListener("blur", function () {
+      var val = baInput.value.trim();
+      if (val === (row.ba || "")) return;
+      saveField(row, "projects", row.projectId, { ba: val || null, updated_at: new Date().toISOString() }, { ba: val }, errorEl);
+    });
+    var baField = panelField("BA", baInput);
+    baField.appendChild(baList);
+    scroll.appendChild(baField);
+
+    var smeInput = document.createElement("input");
+    smeInput.type = "text";
+    smeInput.className = "field-input";
+    smeInput.disabled = !editable;
+    smeInput.value = row.sme || "";
+    smeInput.addEventListener("blur", function () {
+      var val = smeInput.value.trim();
+      if (val === (row.sme || "")) return;
+      saveField(row, "projects", row.projectId, { sme: val || null, updated_at: new Date().toISOString() }, { sme: val }, errorEl);
+    });
+    scroll.appendChild(panelField("SME", smeInput));
+
+    var descriptionInput = document.createElement("textarea");
+    descriptionInput.className = "field-textarea";
+    descriptionInput.rows = 3;
+    descriptionInput.disabled = !editable;
+    descriptionInput.value = row.description || "";
+    descriptionInput.addEventListener("blur", function () {
+      var val = descriptionInput.value.trim();
+      if (val === (row.description || "")) return;
+      saveField(row, "projects", row.projectId, { description: val || null, updated_at: new Date().toISOString() }, { description: val }, errorEl);
+    });
+    scroll.appendChild(panelField("Description", descriptionInput));
+
+    scroll.appendChild(errorEl);
+
+    var hr = document.createElement("hr");
+    hr.className = "field-divider";
+    scroll.appendChild(hr);
+
+    var commentsWrap = document.createElement("div");
+    scroll.appendChild(panelField("Comments", commentsWrap));
+    if (window.ProjectComments) {
+      window.ProjectComments.mount(commentsWrap, {
+        projectId: row.projectId,
+        sourceApp: "roadmap-db",
+        canPost: editable
+      });
+    }
+
+    panel.appendChild(scroll);
+  }
+
+  function load() {
+    sb.from("roadmap_tasks")
+      .select("id, name, start_date, duration_weeks, team, phase, health, project_id, projects!inner(canonical_name, status, pm, ba, sme, description)")
+      .eq("projects.status", "open")
+      .then(function (res) {
+        if (res.error) {
+          showError("Couldn't load open projects: " + res.error.message);
+          return;
+        }
+        showError("");
+
+        var rows = (res.data || []).map(function (r) {
+          var phase = normalizedPhase(r.phase);
+          var start = parseIsoDate(r.start_date);
+          var durationWeeks = Math.max(1, parseInt(r.duration_weeks, 10) || 1);
+          var end = start ? addDays(start, durationWeeks * 7 - 1) : null;
+          return {
+            id: r.id,
+            projectId: r.project_id,
+            title: (r.projects && r.projects.canonical_name) || r.name || "Untitled",
+            team: r.team || "",
+            health: r.health || "",
+            phase: phase,
+            start: start,
+            end: end,
+            pm: (r.projects && r.projects.pm) || "",
+            ba: (r.projects && r.projects.ba) || "",
+            sme: (r.projects && r.projects.sme) || "",
+            description: (r.projects && r.projects.description) || ""
+          };
+        });
+
+        sortRows(rows);
+        allRows = rows;
+        renderPhaseFilterChips();
+        renderTeamFilterChips();
+        renderPmFilterChips();
+        renderBaFilterChips();
+        renderVisible();
+      });
+  }
+
+  document.getElementById("phaseFilterChips").addEventListener("click", function (e) {
+    var chip = e.target.closest(".filter-chip");
+    if (!chip) return;
+    var allPhases = phasesInUse();
+    if (chip.dataset.filterAll) {
+      phaseFilter = null;
+    } else if (chip.dataset.filterNone) {
+      phaseFilter = [];
+    } else {
+      var name = chip.dataset.filterPhase;
+      var current = phaseFilter === null ? allPhases.slice() : phaseFilter.slice();
+      var idx = current.indexOf(name);
+      if (idx === -1) current.push(name); else current.splice(idx, 1);
+      phaseFilter = current.length === allPhases.length ? null : current;
+    }
+    renderPhaseFilterChips();
+    renderVisible();
+  });
+
+  document.getElementById("teamFilterChips").addEventListener("click", function (e) {
+    var chip = e.target.closest(".filter-chip");
+    if (!chip) return;
+    var allTeams = teamsInUse();
+    if (chip.dataset.filterAll) {
+      teamFilter = null;
+    } else if (chip.dataset.filterNone) {
+      teamFilter = [];
+    } else {
+      var name = chip.dataset.filterTeam;
+      var current = teamFilter === null ? allTeams.slice() : teamFilter.slice();
+      var idx = current.indexOf(name);
+      if (idx === -1) current.push(name); else current.splice(idx, 1);
+      teamFilter = current.length === allTeams.length ? null : current;
+    }
+    renderTeamFilterChips();
+    renderVisible();
+  });
+
+  document.getElementById("pmFilterChips").addEventListener("click", function (e) {
+    var chip = e.target.closest(".filter-chip");
+    if (!chip) return;
+    var allPms = pmsInUse();
+    if (chip.dataset.filterAll) {
+      pmFilter = null;
+    } else if (chip.dataset.filterNone) {
+      pmFilter = [];
+    } else {
+      var name = chip.dataset.filterPm;
+      var current = pmFilter === null ? allPms.slice() : pmFilter.slice();
+      var idx = current.indexOf(name);
+      if (idx === -1) current.push(name); else current.splice(idx, 1);
+      pmFilter = current.length === allPms.length ? null : current;
+    }
+    renderPmFilterChips();
+    renderVisible();
+  });
+
+  document.getElementById("baFilterChips").addEventListener("click", function (e) {
+    var chip = e.target.closest(".filter-chip");
+    if (!chip) return;
+    var allBas = basInUse();
+    if (chip.dataset.filterAll) {
+      baFilter = null;
+    } else if (chip.dataset.filterNone) {
+      baFilter = [];
+    } else {
+      var name = chip.dataset.filterBa;
+      var current = baFilter === null ? allBas.slice() : baFilter.slice();
+      var idx = current.indexOf(name);
+      if (idx === -1) current.push(name); else current.splice(idx, 1);
+      baFilter = current.length === allBas.length ? null : current;
+    }
+    renderBaFilterChips();
+    renderVisible();
+  });
+
+  // ---------- Title search (matches roadmap/index.html filters) ----------
+  var searchInputEl = document.getElementById("filterSearchInput");
+  var searchResultsEl = document.getElementById("filterSearchResults");
+
+  function hideSearchResults() {
+    searchResultsEl.hidden = true;
+    searchResultsEl.innerHTML = "";
+  }
+
+  function matchingSearchRows() {
+    if (!searchQuery) return [];
+    return allRows.filter(function (r) { return r.title.toLowerCase().indexOf(searchQuery) !== -1; });
+  }
+
+  function selectSearchResult(row) {
+    searchProjectId = row.projectId;
+    searchQuery = "";
+    searchInputEl.value = row.title;
+    hideSearchResults();
+    renderVisible();
+  }
+
+  function renderSearchResults() {
+    searchResultsEl.innerHTML = "";
+    if (!searchQuery) {
+      hideSearchResults();
+      return;
+    }
+    var matches = matchingSearchRows().slice(0, 8);
+    if (!matches.length) {
+      var empty = document.createElement("li");
+      empty.className = "filter-search-empty";
+      empty.textContent = "No matching projects";
+      searchResultsEl.appendChild(empty);
+      searchResultsEl.hidden = false;
+      return;
+    }
+    matches.forEach(function (r) {
+      var li = document.createElement("li");
+      li.className = "filter-search-result";
+      li.textContent = r.title;
+      li.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        selectSearchResult(r);
+      });
+      searchResultsEl.appendChild(li);
+    });
+    searchResultsEl.hidden = false;
+  }
+
+  searchInputEl.addEventListener("input", function () {
+    searchProjectId = null;
+    searchQuery = searchInputEl.value.trim().toLowerCase();
+    renderSearchResults();
+    renderVisible();
+  });
+  searchInputEl.addEventListener("focus", function () {
+    if (searchQuery && !searchProjectId) renderSearchResults();
+  });
+  searchInputEl.addEventListener("blur", function () {
+    setTimeout(hideSearchResults, 100);
+  });
+  searchInputEl.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      searchQuery = "";
+      searchProjectId = null;
+      searchInputEl.value = "";
+      hideSearchResults();
+      renderVisible();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      var matches = matchingSearchRows();
+      if (matches.length) selectSearchResult(matches[0]);
+    }
+  });
+
+  function csvField(v) {
+    var s = v === null || v === undefined ? "" : String(v);
+    if (/[",\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  function exportCsv() {
+    var header = ["Health", "Phase", "Title", "Team", "PM", "BA", "SME", "Start", "End"];
+    var lines = [header.join(",")];
+    allRows.forEach(function (row) {
+      lines.push([
+        row.health, row.phase, row.title, row.team,
+        row.pm, row.ba, row.sme, fmtDate(row.start), fmtDate(row.end)
+      ].map(csvField).join(","));
+    });
+    var blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "projects-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
+
+  document.getElementById("filtersCollapseToggle").addEventListener("click", function () {
+    filtersCollapsed = !filtersCollapsed;
+    try { localStorage.setItem("projects-listing-filters-collapsed", filtersCollapsed ? "1" : "0"); } catch (err) {}
+    updateFiltersCollapseUI();
+  });
+
+  updateFiltersCollapseUI();
+
+  attachSortHandlers();
+
+  function init() {
+    sb = window.sbClient;
+    load();
+  }
+
+  window.onAuthReady(init);
+})();
+</script>
+</body>
+</html>
